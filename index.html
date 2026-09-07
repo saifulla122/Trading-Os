@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>Trading OS</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Trading OS">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0E0F13">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0E0F13; --bg2:#151723; --card:#1B1E2A; --line:#2A2D3C;
+  --ink:#ECEDF3; --dim:#8B8FA3;
+  --gold:#D4AF37; --blue:#4C8BF5; --violet:#9B6BF5; --teal:#2FBF9F;
+  --amber:#F5A623; --emerald:#3FBF7F; --rose:#F56B9B;
+  --win:#3FBF7F; --loss:#F5544C; --be:#8B8FA3;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;padding-bottom:30px;-webkit-font-smoothing:antialiased;}
+h1,h2,h3{font-family:'Spectral',serif;font-weight:600;margin:0;}
+.mono{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;}
+
+/* NAV */
+#topbar{position:sticky;top:0;z-index:20;background:rgba(14,15,19,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);}
+#brand{padding:14px 18px 6px;}
+#brand h1{font-size:20px;letter-spacing:.01em;}
+#brand .tag{font-size:12px;color:var(--dim);margin-top:2px;}
+#tabs{display:flex;gap:6px;overflow-x:auto;padding:10px 14px 12px;scrollbar-width:none;}
+#tabs::-webkit-scrollbar{display:none;}
+.tab{flex:0 0 auto;padding:7px 13px;border-radius:20px;font-size:13px;font-weight:500;color:var(--dim);background:var(--bg2);border:1px solid var(--line);cursor:pointer;white-space:nowrap;transition:all .18s;}
+.tab.active{color:#0E0F13;font-weight:600;}
+.wrap{max-width:640px;margin:0 auto;padding:18px 16px 60px;}
+.view{display:none;animation:fade .28s ease;}
+.view.active{display:block;}
+@keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+/* STATS */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;}
+.stat-grid.cols3{grid-template-columns:1fr 1fr 1fr;}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;}
+.stat .n{font-size:20px;font-weight:600;}
+.stat .l{font-size:11px;color:var(--dim);margin-top:2px;}
+.win{color:var(--win)!important;} .loss{color:var(--loss)!important;} .be{color:var(--be)!important;}
+
+/* SECTION */
+.section{margin-bottom:28px;}
+.section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.section-head h2{font-size:17px;}
+.section-head .accent{width:6px;height:16px;border-radius:3px;display:inline-block;margin-right:8px;vertical-align:-2px;}
+
+/* BUTTONS */
+button{font-family:'IBM Plex Sans',sans-serif;border:none;border-radius:7px;cursor:pointer;font-weight:600;font-size:13px;padding:9px 15px;}
+.btn-add{background:var(--mc,var(--gold));color:#0E0F13;}
+.btn-ghost{background:transparent;border:1px solid var(--line);color:var(--dim);}
+.btn-ghost:hover{color:var(--ink);border-color:var(--dim);}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;}
+.quick-btn{background:var(--card);border:1px solid var(--line);color:var(--ink);padding:11px 14px;border-radius:9px;font-size:13px;flex:1;min-width:130px;text-align:left;}
+.quick-btn .k{display:block;font-size:10.5px;color:var(--dim);margin-bottom:2px;font-weight:400;}
+
+/* CARD ENTRY */
+.entry{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--mc,var(--gold));border-radius:8px;padding:12px 14px;margin-bottom:9px;cursor:pointer;}
+.entry-top{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.entry-title{font-weight:600;font-size:14.5px;}
+.entry-sub{font-size:11.5px;color:var(--dim);margin-top:3px;}
+.badge{font-size:10.5px;padding:2px 8px;border-radius:20px;border:1px solid var(--line);color:var(--dim);}
+.badge.grade-A,.badge.outcome-Win{background:rgba(63,191,127,.15);color:var(--win);border-color:transparent;}
+.badge.grade-D,.badge.outcome-Loss{background:rgba(245,84,76,.15);color:var(--loss);border-color:transparent;}
+.badge.outcome-BE{background:rgba(139,143,163,.15);color:var(--be);border-color:transparent;}
+.empty{color:var(--dim);font-size:13.5px;padding:14px 0;text-align:center;}
+
+/* PROGRESS */
+.progress{height:7px;background:var(--bg2);border-radius:6px;overflow:hidden;margin-top:8px;border:1px solid var(--line);}
+.progress .fill{height:100%;border-radius:6px;width:0;transition:width 1s cubic-bezier(.2,.8,.2,1);background:var(--mc,var(--gold));}
+
+/* FORM (modal) */
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;z-index:50;}
+#overlay.open{display:flex;}
+#modal{background:var(--bg2);width:100%;max-height:88vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:18px 18px 24px;border-top:2px solid var(--mc,var(--gold));animation:slideup .25s ease;}
+@keyframes slideup{from{transform:translateY(30px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+#modal h3{font-size:17px;margin-bottom:14px;}
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:11.5px;color:var(--dim);margin-bottom:5px;}
+.field input, .field select, .field textarea{
+  width:100%;background:var(--card);border:1px solid var(--line);color:var(--ink);
+  padding:9px 10px;border-radius:6px;font-family:'IBM Plex Sans',sans-serif;font-size:13.5px;
+}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--mc,var(--gold));}
+.field textarea{resize:vertical;min-height:50px;}
+.field-row{display:flex;gap:10px;}
+.field-row .field{flex:1;}
+.form-actions{display:flex;gap:8px;margin-top:16px;}
+.form-actions button{flex:1;}
+.btn-danger{background:transparent;color:var(--loss);border:1px solid rgba(245,84,76,.4);}
+.close-x{float:right;color:var(--dim);font-size:20px;cursor:pointer;line-height:1;}
+
+/* EQUITY SVG */
+#eqchart{width:100%;height:180px;}
+.eq-line{fill:none;stroke:var(--gold);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
+.eq-fill{fill:url(#eqGrad);opacity:.5;}
+
+.mini-bar{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.mini-bar .lbl{width:78px;font-size:11.5px;color:var(--dim);flex-shrink:0;}
+.mini-bar .track{flex:1;height:6px;background:var(--bg2);border-radius:4px;overflow:hidden;border:1px solid var(--line);}
+.mini-bar .track .fill{height:100%;border-radius:4px;width:0;transition:width 1s ease;}
+.mini-bar .val{width:26px;text-align:right;font-size:11.5px;font-family:'IBM Plex Mono',monospace;}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div id="brand"><h1>Trading OS</h1><div class="tag">FundedNext · 6K Stellar 2-Step</div></div>
+  <div id="tabs"></div>
+</div>
+<div class="wrap" id="views"></div>
+
+<div id="overlay"><div id="modal"></div></div>
+
+<script>
+/* ===================== CONFIG ===================== */
+const MODULES = {
+  dashboard:{label:'Dashboard', color:'var(--gold)'},
+  accounts:{label:'Accounts', color:'var(--blue)', fields:[
+    {k:'name',l:'Account Name',t:'text'},
+    {k:'type',l:'Account Type',t:'select',o:['Personal','Funded']},
+    {k:'propFirm',l:'Prop Firm',t:'text'},
+    {k:'size',l:'Account Size',t:'number'},
+    {k:'startBalance',l:'Starting Balance',t:'number'},
+    {k:'currentBalance',l:'Current Balance',t:'number'},
+    {k:'currentEquity',l:'Current Equity',t:'number'},
+    {k:'riskAmt',l:'Risk / Trade $',t:'number'},
+    {k:'riskPct',l:'Risk / Trade %',t:'number'},
+    {k:'dailyLossAmt',l:'Daily Loss Limit $',t:'number'},
+    {k:'overallLossAmt',l:'Overall Loss Limit $',t:'number'},
+    {k:'profitTargetAmt',l:'Profit Target $',t:'number'},
+    {k:'currentDrawdownAmt',l:'Current Drawdown $',t:'number'},
+    {k:'profitSplit',l:'Profit Split',t:'text'},
+    {k:'phase',l:'Challenge Phase',t:'text'},
+    {k:'startDate',l:'Start Date',t:'date'},
+    {k:'status',l:'Status',t:'select',o:['Active','Passed','Failed','Paused']},
+    {k:'notes',l:'Notes',t:'textarea'}
+  ], list:i=>({title:i.name||'Account', sub:`${i.propFirm||''} · ${i.status||''}`})},
+
+  trades:{label:'Journal', color:'var(--blue)', fields:[
+    {k:'date',l:'Date',t:'date'},
+    {k:'time',l:'Time',t:'time'},
+    {k:'accountId',l:'Account',t:'rel',src:'accounts'},
+    {k:'pair',l:'Pair',t:'text'},
+    {k:'direction',l:'Direction',t:'select',o:['Buy','Sell']},
+    {k:'session',l:'Session',t:'select',o:['Asia','London','New York','Overlap']},
+    {k:'marketCondition',l:'Market Condition',t:'select',o:['Trending','Ranging','Choppy','Volatile']},
+    {k:'htfBias',l:'HTF Bias',t:'text'},
+    {k:'ltfBias',l:'LTF Bias',t:'text'},
+    {k:'setupId',l:'Setup',t:'rel',src:'setups'},
+    {k:'poiType',l:'POI Type',t:'text'},
+    {k:'entryModel',l:'Entry Model',t:'text'},
+    {k:'confluences',l:'Confluences',t:'text'},
+    {k:'entryPrice',l:'Entry Price',t:'number'},
+    {k:'stopLoss',l:'Stop Loss',t:'number'},
+    {k:'takeProfit',l:'Take Profit',t:'number'},
+    {k:'exitPrice',l:'Exit Price',t:'number'},
+    {k:'riskAmt',l:'Risk $',t:'number'},
+    {k:'plannedRR',l:'Planned RR',t:'text'},
+    {k:'resultR',l:'Result R',t:'number'},
+    {k:'pnl',l:'P&L $',t:'number'},
+    {k:'outcome',l:'Outcome',t:'select',o:['Win','Loss','BE']},
+    {k:'duration',l:'Trade Duration',t:'text'},
+    {k:'entryReason',l:'Entry Reason',t:'textarea'},
+    {k:'invalidationReason',l:'Invalidation Reason',t:'textarea'},
+    {k:'mistake',l:'Mistake',t:'text'},
+    {k:'emotionBefore',l:'Emotion Before',t:'text'},
+    {k:'emotionDuring',l:'Emotion During',t:'text'},
+    {k:'emotionAfter',l:'Emotion After',t:'text'},
+    {k:'ruleAdherence',l:'Rule Adherence',t:'select',o:['Yes','No']},
+    {k:'executionGrade',l:'Execution Grade',t:'select',o:['A+','A','B','C','D']},
+    {k:'setupGrade',l:'Setup Grade',t:'select',o:['A+','A','B','C','D']},
+    {k:'aPlusSetup',l:'A+ Setup?',t:'select',o:['Yes','No']},
+    {k:'lessonLearned',l:'Lesson Learned',t:'textarea'},
+    {k:'whatWentWell',l:'What Went Well',t:'textarea'},
+    {k:'whatToImprove',l:'What To Improve',t:'textarea'},
+    {k:'followUpAction',l:'Follow-up Action',t:'text'},
+    {k:'newsEvent',l:'News / Event',t:'text'},
+    {k:'tags',l:'Tags',t:'text'}
+  ], list:i=>({title:`${i.pair||'—'} ${i.direction||''}`, sub:`${i.date||''} · ${i.session||''} · ${i.outcome||''}`,
+    right:i.pnl!==undefined&&i.pnl!==''?fmtMoney(i.pnl):'', badge:i.executionGrade?{cls:'grade-'+i.executionGrade[0],txt:i.executionGrade}:(i.outcome?{cls:'outcome-'+i.outcome,txt:i.outcome}:null)})},
+
+  psychology:{label:'Psychology', color:'var(--violet)', fields:[
+    {k:'date',l:'Date',t:'date'},
+    {k:'sleep',l:'Sleep Quality (1-10)',t:'number'},
+    {k:'energy',l:'Energy (1-10)',t:'number'},
+    {k:'focus',l:'Focus (1-10)',t:'number'},
+    {k:'stress',l:'Stress (1-10)',t:'number'},
+    {k:'confidence',l:'Confidence (1-10)',t:'number'},
+    {k:'patience',l:'Patience (1-10)',t:'number'},
+    {k:'discipline',l:'Discipline (1-10)',t:'number'},
+    {k:'fomo',l:'FOMO (1-10)',t:'number'},
+    {k:'revengeUrge',l:'Revenge Trading Urge (1-10)',t:'number'},
+    {k:'fear',l:'Fear (1-10)',t:'number'},
+    {k:'greed',l:'Greed (1-10)',t:'number'},
+    {k:'overallMental',l:'Overall Mental State (1-10)',t:'number'},
+    {k:'preMarketEmotion',l:'Pre-Market Emotion',t:'text'},
+    {k:'postMarketEmotion',l:'Post-Market Emotion',t:'text'},
+    {k:'followedPlan',l:'Did I Follow My Plan?',t:'select',o:['Yes','No']},
+    {k:'overtraded',l:'Did I Overtrade?',t:'select',o:['Yes','No']},
+    {k:'brokeRiskRules',l:'Did I Break Risk Rules?',t:'select',o:['Yes','No']},
+    {k:'tookAPlus',l:'Did I Take an A+ Setup?',t:'select',o:['Yes','No']},
+    {k:'biggestTrigger',l:'Biggest Trigger',t:'text'},
+    {k:'whatTriggered',l:'What Triggered Me?',t:'textarea'},
+    {k:'whatWentWell',l:'What I Did Well',t:'textarea'},
+    {k:'whatToImprove',l:'What I Need To Improve',t:'textarea'},
+    {k:'oneRule',l:'One Rule For Tomorrow',t:'text'}
+  ], list:i=>({title:i.date||'Entry', sub:`Discipline ${i.discipline||'-'} · Stress ${i.stress||'-'} · Plan followed: ${i.followedPlan||'-'}`})},
+
+  goals:{label:'Goals', color:'var(--teal)', fields:[
+    {k:'goal',l:'Goal',t:'text'},
+    {k:'category',l:'Category',t:'select',o:['Process','Performance','Learning','Financial']},
+    {k:'startDate',l:'Start Date',t:'date'},
+    {k:'deadline',l:'Deadline',t:'date'},
+    {k:'target',l:'Target',t:'text'},
+    {k:'current',l:'Current',t:'text'},
+    {k:'progress',l:'Progress %',t:'number'},
+    {k:'status',l:'Status',t:'select',o:['Not Started','In Progress','Completed','Missed']},
+    {k:'priority',l:'Priority',t:'select',o:['High','Medium','Low']},
+    {k:'why',l:'Why This Matters',t:'textarea'},
+    {k:'actionPlan',l:'Action Plan',t:'textarea'},
+    {k:'weeklyAction',l:'Weekly Action',t:'text'},
+    {k:'successMetric',l:'Success Metric',t:'text'}
+  ], list:i=>({title:i.goal||'Goal', sub:`${i.category||''} · ${i.priority||''} priority · ${i.status||''}`})},
+
+  setups:{label:'Setups', color:'var(--amber)', fields:[
+    {k:'name',l:'Setup Name',t:'text'},
+    {k:'type',l:'Setup Type',t:'text'},
+    {k:'marketCondition',l:'Market Condition',t:'text'},
+    {k:'htfContext',l:'HTF Context',t:'text'},
+    {k:'requiredLiquidity',l:'Required Liquidity',t:'text'},
+    {k:'poi',l:'POI',t:'text'},
+    {k:'confirmation',l:'Confirmation',t:'text'},
+    {k:'entryModel',l:'Entry Model',t:'text'},
+    {k:'stopPlacement',l:'Stop Placement',t:'text'},
+    {k:'targetModel',l:'Target Model',t:'text'},
+    {k:'minRR',l:'Minimum RR',t:'text'},
+    {k:'session',l:'Session',t:'text'},
+    {k:'checklist',l:'Checklist',t:'textarea'},
+    {k:'qualityRating',l:'Quality Rating (1-5)',t:'number'},
+    {k:'notes',l:'Notes',t:'textarea'}
+  ], list:i=>({title:i.name||'Setup', sub:`${i.type||''} · Quality ${i.qualityRating||'-'}/5`})},
+
+  challenges:{label:'Challenge', color:'var(--emerald)', fields:[
+    {k:'name',l:'Challenge Name',t:'text'},
+    {k:'propFirm',l:'Prop Firm',t:'text'},
+    {k:'accountSize',l:'Account Size',t:'number'},
+    {k:'phase',l:'Phase',t:'text'},
+    {k:'startBalance',l:'Starting Balance',t:'number'},
+    {k:'currentBalance',l:'Current Balance',t:'number'},
+    {k:'profitTarget',l:'Profit Target',t:'number'},
+    {k:'dailyLossLimit',l:'Daily Loss Limit',t:'number'},
+    {k:'overallLossLimit',l:'Overall Loss Limit',t:'number'},
+    {k:'daysTraded',l:'Days Traded',t:'number'},
+    {k:'status',l:'Status',t:'select',o:['Active','Passed','Failed','Paused']},
+    {k:'payoutTarget',l:'Payout Target',t:'text'},
+    {k:'nextPayoutDate',l:'Next Payout Date',t:'date'},
+    {k:'notes',l:'Notes',t:'textarea'}
+  ], list:i=>({title:i.name||'Challenge', sub:`${i.propFirm||''} · ${i.phase||''} · ${i.status||''}`})},
+
+  weekly:{label:'Weekly', color:'var(--rose)', fields:[
+    {k:'week',l:'Week (start date)',t:'date'},
+    {k:'bestSetup',l:'Best Setup',t:'text'},
+    {k:'worstSetup',l:'Worst Setup',t:'text'},
+    {k:'biggestMistake',l:'Biggest Mistake',t:'text'},
+    {k:'whatWorked',l:'What Worked',t:'textarea'},
+    {k:'whatFailed',l:'What Failed',t:'textarea'},
+    {k:'mainLesson',l:'Main Lesson',t:'textarea'},
+    {k:'toStop',l:'One Thing To Stop',t:'text'},
+    {k:'toStart',l:'One Thing To Start',t:'text'},
+    {k:'toContinue',l:'One Thing To Continue',t:'text'},
+    {k:'nextFocus',l:'Next Week Focus',t:'text'}
+  ], list:i=>({title:'Week of '+(i.week||'—'), sub:i.mainLesson? i.mainLesson.slice(0,50):'No lesson noted'})},
+
+  monthly:{label:'Monthly', color:'var(--rose)', fields:[
+    {k:'month',l:'Month',t:'text'},
+    {k:'startBalance',l:'Starting Balance',t:'number'},
+    {k:'endBalance',l:'Ending Balance',t:'number'},
+    {k:'bestSetup',l:'Best Setup',t:'text'},
+    {k:'bestPair',l:'Best Pair',t:'text'},
+    {k:'bestSession',l:'Best Session',t:'text'},
+    {k:'commonMistake',l:'Most Common Mistake',t:'text'},
+    {k:'biggestImprovement',l:'Biggest Improvement',t:'textarea'},
+    {k:'biggestWeakness',l:'Biggest Weakness',t:'textarea'},
+    {k:'mainLesson',l:'Main Lesson',t:'textarea'},
+    {k:'nextGoal',l:'Next Month Goal',t:'text'}
+  ], list:i=>({title:i.month||'Month', sub:i.mainLesson? i.mainLesson.slice(0,50):'No lesson noted'})},
+
+  equity:{label:'Equity', color:'var(--gold)'}
+};
+const TAB_ORDER = ['dashboard','trades','accounts','psychology','goals','setups','challenges','equity','weekly','monthly'];
+
+/* ===================== STATE ===================== */
+let state = {accounts:[],trades:[],psychology:[],goals:[],setups:[],challenges:[],weekly:[],monthly:[]};
+const STORE_KEY = 'tradingos:state:v1';
+
+async function loadState(){
+  try{
+    const res = await window.storage.get(STORE_KEY, false);
+    if(res && res.value) state = Object.assign(state, JSON.parse(res.value));
+  }catch(e){ /* first run, no data yet */ }
+  seedIfEmpty();
+  buildTabs();
+  switchTab('dashboard');
+}
+async function saveState(){
+  try{ await window.storage.set(STORE_KEY, JSON.stringify(state), false); }
+  catch(e){ console.error('save failed', e); }
+}
+
+function seedIfEmpty(){
+  if(state.accounts.length===0){
+    state.accounts.push({id:uid(),name:'6K Stellar Challenge',type:'Funded',propFirm:'FundedNext',size:6000,startBalance:6000,currentBalance:5942.36,currentEquity:5942.36,riskAmt:60,riskPct:1,dailyLossAmt:300,overallLossAmt:600,profitTargetAmt:600,currentDrawdownAmt:57.64,profitSplit:'80/20',phase:'P1',startDate:'2026-09-05',status:'Active',notes:''});
+  }
+  if(state.trades.length===0){
+    state.trades.push({id:uid(),date:'2026-09-07',time:'13:27',accountId:state.accounts[0].id,pair:'XAUUSD',direction:'Buy',session:'London',marketCondition:'Volatile',entryPrice:4399.28,stopLoss:4385.22,takeProfit:4449.70,exitPrice:4383.20,riskAmt:60,plannedRR:'1:3.59',resultR:-0.96,pnl:-57.36,outcome:'Loss',duration:'1:05:08',tags:'stopped-out'});
+  }
+}
+function uid(){ return 'id-'+Date.now()+'-'+Math.floor(Math.random()*9999); }
+function fmtMoney(n){ n=Number(n)||0; const s=n>=0?'+':'−'; return s+'$'+Math.abs(n).toFixed(2); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+
+/* ---- analytics helpers ---- */
+function sortedTrades(){ return state.trades.slice().sort((a,b)=>((a.date||'')+(a.time||'')).localeCompare((b.date||'')+(b.time||''))); }
+function todaysTrades(){ const t = todayStr(); return state.trades.filter(tr=>tr.date===t); }
+function todaysPnl(){ return todaysTrades().reduce((s,t)=>s+(Number(t.pnl)||0),0); }
+function currentStreak(){
+  const list = sortedTrades().slice().reverse().filter(t=>t.outcome==='Win'||t.outcome==='Loss');
+  if(!list.length) return {type:null,count:0};
+  const type = list[0].outcome;
+  let count = 0;
+  for(const t of list){ if(t.outcome===type) count++; else break; }
+  return {type, count};
+}
+function mistakeFrequency(){
+  const map = {};
+  state.trades.forEach(t=>{ const m=(t.mistake||'').trim(); if(m) map[m]=(map[m]||0)+1; });
+  return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+}
+function sessionPerformance(){
+  const sessions = ['Asia','London','New York','Overlap'];
+  return sessions.map(s=>{
+    const list = state.trades.filter(t=>t.session===s);
+    const wins = list.filter(t=>t.outcome==='Win').length;
+    const pnl = list.reduce((sum,t)=>sum+(Number(t.pnl)||0),0);
+    return {session:s, count:list.length, winRate: list.length?Math.round(wins/list.length*100):0, pnl};
+  }).filter(s=>s.count>0);
+}
+function ruleAdherencePct(){
+  const rated = state.trades.filter(t=>t.ruleAdherence==='Yes'||t.ruleAdherence==='No');
+  if(!rated.length) return null;
+  const yes = rated.filter(t=>t.ruleAdherence==='Yes').length;
+  return Math.round(yes/rated.length*100);
+}
+function exportAll(){
+  const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'trading-os-backup.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function exportTradesCsv(){
+  const trades = state.trades;
+  if(!trades.length){ alert('Koi trade nahi hai export karne ke liye.'); return; }
+  const cols = MODULES.trades.fields.map(f=>f.k);
+  const header = cols.join(',');
+  const rows = trades.map(t=> cols.map(c=>{
+    let v = t[c]!==undefined? String(t[c]) : '';
+    if(v.includes(',')||v.includes('"')) v = '"'+v.replace(/"/g,'""')+'"';
+    return v;
+  }).join(','));
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'trades.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ===================== NAV ===================== */
+function buildTabs(){
+  const tabsEl = document.getElementById('tabs');
+  tabsEl.innerHTML = TAB_ORDER.map(id=>{
+    const m = MODULES[id];
+    return `<div class="tab" data-tab="${id}" style="--mc:${m.color}" onclick="switchTab('${id}')">${m.label}</div>`;
+  }).join('');
+  const viewsEl = document.getElementById('views');
+  viewsEl.innerHTML = TAB_ORDER.map(id=>`<div class="view" id="view-${id}"></div>`).join('');
+}
+function switchTab(id){
+  document.querySelectorAll('.tab').forEach(t=>{
+    const active = t.dataset.tab===id;
+    t.classList.toggle('active', active);
+    t.style.background = active ? MODULES[t.dataset.tab].color : '';
+  });
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+id).classList.add('active');
+  renderView(id);
+}
+
+/* ===================== RENDER ROUTER ===================== */
+function renderView(id){
+  if(id==='dashboard') return renderDashboard();
+  if(id==='equity') return renderEquity();
+  return renderGenericModule(id);
+}
+
+/* ===================== GENERIC CRUD MODULE ===================== */
+function renderGenericModule(modId){
+  const mod = MODULES[modId];
+  const items = state[modId];
+  const el = document.getElementById('view-'+modId);
+  el.style.setProperty('--mc', mod.color);
+
+  let extra = '';
+  if(modId==='psychology') extra = psychSummaryHTML();
+  if(modId==='goals') extra = '';
+
+  el.innerHTML = `
+    <div class="section-head">
+      <h2><span class="accent" style="background:${mod.color}"></span>${mod.label}</h2>
+      <div class="btn-row" style="margin-top:0;">
+        ${modId==='trades'?'<button class="btn-ghost" onclick="exportTradesCsv()">Export CSV</button>':''}
+        <button class="btn-ghost" onclick="openImport('${modId}')">Import</button>
+        <button class="btn-add" style="--mc:${mod.color}" onclick="openForm('${modId}')">+ Add</button>
+      </div>
+    </div>
+    ${extra}
+    <div id="list-${modId}"></div>
+  `;
+  const listEl = document.getElementById('list-'+modId);
+  if(!items.length){ listEl.innerHTML = '<div class="empty">Koi entry nahi hai. + Add se shuru karein.</div>'; return; }
+
+  const sorted = items.slice().sort((a,b)=> (b.date||b.week||'').localeCompare(a.date||a.week||''));
+  listEl.innerHTML = sorted.map(item=>{
+    const meta = mod.list(item);
+    const badge = meta.badge ? `<span class="badge ${meta.badge.cls}">${meta.badge.txt}</span>` : '';
+    const right = meta.right!==undefined && meta.right!=='' ? `<span class="mono ${Number(item.pnl)<0?'loss':(Number(item.pnl)>0?'win':'')}">${meta.right}</span>` : badge;
+    return `<div class="entry" style="--mc:${mod.color}" onclick="openForm('${modId}','${item.id}')">
+      <div class="entry-top"><div class="entry-title">${escapeHtml(meta.title)}</div>${right}</div>
+      <div class="entry-sub">${escapeHtml(meta.sub||'')}</div>
+    </div>`;
+  }).join('');
+}
+
+function relOptions(src){
+  return (state[src]||[]).map(x=>({id:x.id, label:x.name||x.pair||x.goal||'Untitled'}));
+}
+
+function openForm(modId, itemId){
+  const mod = MODULES[modId];
+  const item = itemId ? state[modId].find(x=>x.id===itemId) : {};
+  const isEdit = !!itemId;
+  const fieldsHTML = mod.fields.map(f=>{
+    const val = item[f.k]!==undefined ? item[f.k] : (f.k==='date'?todayStr():'');
+    if(f.t==='textarea') return fieldWrap(f, `<textarea data-k="${f.k}">${escapeHtml(val)}</textarea>`);
+    if(f.t==='select') return fieldWrap(f, `<select data-k="${f.k}"><option value="">—</option>${f.o.map(o=>`<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}</select>`);
+    if(f.t==='rel') return fieldWrap(f, `<select data-k="${f.k}"><option value="">—</option>${relOptions(f.src).map(o=>`<option value="${o.id}" ${val===o.id?'selected':''}>${escapeHtml(o.label)}</option>`).join('')}</select>`);
+    return fieldWrap(f, `<input type="${f.t}" data-k="${f.k}" value="${escapeHtml(val)}">`);
+  }).join('');
+
+  document.getElementById('modal').innerHTML = `
+    <span class="close-x" onclick="closeModal()">✕</span>
+    <h3 style="color:${mod.color}">${isEdit?'Edit':'New'} ${mod.label.replace(/s$/,'')}</h3>
+    <form id="entryForm">${fieldsHTML}</form>
+    <div class="form-actions">
+      ${isEdit?'<button type="button" class="btn-danger" onclick="deleteEntry(\''+modId+'\',\''+itemId+'\')">Delete</button>':''}
+      <button type="button" class="btn-add" style="--mc:${mod.color}" onclick="saveEntry('${modId}','${itemId||''}')">Save</button>
+    </div>
+  `;
+  document.getElementById('overlay').classList.add('open');
+}
+function fieldWrap(f, inputHTML){
+  return `<div class="field"><label>${f.l}</label>${inputHTML}</div>`;
+}
+function closeModal(){ document.getElementById('overlay').classList.remove('open'); }
+
+async function saveEntry(modId, itemId){
+  const form = document.getElementById('entryForm');
+  const data = {};
+  form.querySelectorAll('[data-k]').forEach(inp=> data[inp.dataset.k] = inp.value);
+  if(itemId){
+    const idx = state[modId].findIndex(x=>x.id===itemId);
+    state[modId][idx] = Object.assign({id:itemId}, data);
+  } else {
+    data.id = uid();
+    state[modId].push(data);
+  }
+  await saveState();
+  closeModal();
+  renderView(modId);
+  if(modId==='trades'||modId==='accounts') {} // dashboard recalcs on next visit
+}
+async function deleteEntry(modId, itemId){
+  state[modId] = state[modId].filter(x=>x.id!==itemId);
+  await saveState();
+  closeModal();
+  renderView(modId);
+}
+function openImport(modId){
+  const mod = MODULES[modId];
+  document.getElementById('modal').innerHTML = `
+    <span class="close-x" onclick="closeModal()">✕</span>
+    <h3 style="color:${mod.color}">Import ${mod.label}</h3>
+    <div class="field"><label>Claude se mila hua data yahan paste karein</label><textarea id="importText" style="min-height:150px;" placeholder='{"pair":"XAUUSD","direction":"Buy",...}'></textarea></div>
+    <div class="form-actions"><button class="btn-add" style="--mc:${mod.color}" onclick="runImport('${modId}')">Import</button></div>
+  `;
+  document.getElementById('overlay').classList.add('open');
+}
+async function runImport(modId){
+  const txt = document.getElementById('importText').value.trim();
+  if(!txt) return;
+  let parsed;
+  try{ parsed = JSON.parse(txt); }
+  catch(e){ alert('Ye JSON valid nahi hai — Claude se dobara copy karke try karein.'); return; }
+  const list = Array.isArray(parsed) ? parsed : [parsed];
+  list.forEach(p=>{ if(!p.id) p.id = uid(); state[modId].push(p); });
+  await saveState();
+  closeModal();
+  renderView(modId);
+}
+function escapeHtml(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ===================== DASHBOARD ===================== */
+function renderDashboard(){
+  const el = document.getElementById('view-dashboard');
+  const acct = state.accounts[0];
+  const trades = state.trades;
+  const total = trades.length;
+  const wins = trades.filter(t=>t.outcome==='Win').length;
+  const losses = trades.filter(t=>t.outcome==='Loss').length;
+  const bes = trades.filter(t=>t.outcome==='BE').length;
+  const winRate = total? Math.round((wins/total)*100):0;
+  const totalPnl = trades.reduce((s,t)=>s+(Number(t.pnl)||0),0);
+  const rs = trades.map(t=>Number(t.resultR)).filter(n=>!isNaN(n));
+  const avgR = rs.length? (rs.reduce((a,b)=>a+b,0)/rs.length).toFixed(2):'—';
+  const winRs = rs.filter(r=>r>0), lossRs = rs.filter(r=>r<0);
+  const avgWinR = winRs.length?(winRs.reduce((a,b)=>a+b,0)/winRs.length).toFixed(2):'—';
+  const avgLossR = lossRs.length?(lossRs.reduce((a,b)=>a+b,0)/lossRs.length).toFixed(2):'—';
+  const grossWin = trades.filter(t=>Number(t.pnl)>0).reduce((s,t)=>s+Number(t.pnl),0);
+  const grossLoss = Math.abs(trades.filter(t=>Number(t.pnl)<0).reduce((s,t)=>s+Number(t.pnl),0));
+  const profitFactor = grossLoss? (grossWin/grossLoss).toFixed(2) : (grossWin>0?'∞':'—');
+  const best = trades.length? Math.max(...trades.map(t=>Number(t.pnl)||0)):0;
+  const worst = trades.length? Math.min(...trades.map(t=>Number(t.pnl)||0)):0;
+
+  const remainingTarget = acct ? Math.max((Number(acct.profitTargetAmt)||0) - ((Number(acct.currentBalance)||0)-(Number(acct.startBalance)||0)), 0) : 0;
+  const targetProgress = acct && acct.profitTargetAmt ? Math.min(100, Math.round((((Number(acct.currentBalance)||0)-(Number(acct.startBalance)||0))/Number(acct.profitTargetAmt))*100)) : 0;
+
+  const psychThisWeek = state.psychology.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+  const activeGoals = state.goals.filter(g=>g.status==='In Progress'||g.status==='Not Started');
+  const challenge = state.challenges[0];
+
+  el.innerHTML = `
+    <div class="section">
+      <div class="section-head"><h2><span class="accent" style="background:var(--gold)"></span>Account Snapshot</h2></div>
+      <div class="stat-grid cols3">
+        <div class="stat"><div class="n mono">$${acct?Number(acct.currentBalance).toFixed(2):'—'}</div><div class="l">Current Balance</div></div>
+        <div class="stat"><div class="n mono ${totalPnl>=0?'win':'loss'}">${fmtMoney(totalPnl)}</div><div class="l">Total P&L</div></div>
+        <div class="stat"><div class="n mono">$${acct?Number(acct.currentDrawdownAmt||0).toFixed(2):'—'}</div><div class="l">Overall Drawdown</div></div>
+      </div>
+      <div class="stat" style="margin-bottom:20px;">
+        <div class="l" style="margin-bottom:0;">Profit Target Progress — remaining $${remainingTarget.toFixed(2)}</div>
+        <div class="progress"><div class="fill" id="targetFill" style="--mc:var(--emerald)"></div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2><span class="accent" style="background:var(--blue)"></span>Performance</h2></div>
+      <div class="stat-grid">
+        <div class="stat"><div class="n">${total}</div><div class="l">Total Trades</div></div>
+        <div class="stat"><div class="n win">${winRate}%</div><div class="l">Win Rate</div></div>
+        <div class="stat"><div class="n win">${wins}</div><div class="l">Wins</div></div>
+        <div class="stat"><div class="n loss">${losses}</div><div class="l">Losses</div></div>
+        <div class="stat"><div class="n be">${bes}</div><div class="l">Breakevens</div></div>
+        <div class="stat"><div class="n mono">${avgR}</div><div class="l">Average R</div></div>
+        <div class="stat"><div class="n mono win">${avgWinR}</div><div class="l">Avg Winning R</div></div>
+        <div class="stat"><div class="n mono loss">${avgLossR}</div><div class="l">Avg Losing R</div></div>
+        <div class="stat"><div class="n mono">${profitFactor}</div><div class="l">Profit Factor</div></div>
+        <div class="stat"><div class="n mono win">${fmtMoney(best)}</div><div class="l">Best Trade</div></div>
+        <div class="stat"><div class="n mono loss">${fmtMoney(worst)}</div><div class="l">Worst Trade</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2><span class="accent" style="background:var(--rose)"></span>Risk &amp; Discipline</h2></div>
+      ${dailyLossAlertHTML()}
+      <div class="stat-grid" style="margin-bottom:14px;">
+        <div class="stat"><div class="n ${streakBadgeClass()}">${streakText()}</div><div class="l">Current Streak</div></div>
+        <div class="stat"><div class="n mono">${ruleAdherencePct()!==null?ruleAdherencePct()+'%':'—'}</div><div class="l">Rule Adherence</div></div>
+      </div>
+      ${sessionPerformance().length? `<div class="stat" style="margin-bottom:14px;">
+        <div class="l" style="margin-bottom:8px;">Session Performance</div>
+        ${sessionPerformance().map(s=>`<div class="mini-bar"><div class="lbl">${s.session}</div><div class="track"><div class="fill" style="background:${s.pnl>=0?'var(--win)':'var(--loss)'};width:${s.winRate}%"></div></div><div class="val mono">${s.winRate}%</div></div>`).join('')}
+      </div>` : ''}
+      ${mistakeFrequency().length? `<div class="stat">
+        <div class="l" style="margin-bottom:8px;">Top Mistakes</div>
+        ${mistakeFrequency().slice(0,4).map(([m,c])=>`<div class="mini-bar"><div class="lbl" style="width:auto;flex:1;color:var(--ink);font-size:12.5px;">${escapeHtml(m)}</div><div class="val mono loss">×${c}</div></div>`).join('')}
+      </div>` : ''}
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2><span class="accent" style="background:var(--violet)"></span>Psychology — Latest</h2></div>
+      ${psychThisWeek ? `<div class="entry" style="--mc:var(--violet)" onclick="switchTab('psychology')">
+        <div class="entry-top"><div class="entry-title">${psychThisWeek.date}</div></div>
+        <div class="entry-sub">Discipline ${psychThisWeek.discipline||'-'} · Stress ${psychThisWeek.stress||'-'} · Focus ${psychThisWeek.focus||'-'}</div>
+      </div>` : '<div class="empty">Aaj ka psychology check-in abhi nahi hai.</div>'}
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2><span class="accent" style="background:var(--teal)"></span>Goals</h2></div>
+      ${activeGoals.length? activeGoals.slice(0,3).map(g=>`
+        <div class="entry" style="--mc:var(--teal)" onclick="switchTab('goals')">
+          <div class="entry-top"><div class="entry-title">${escapeHtml(g.goal)}</div><span class="mono">${g.progress||0}%</span></div>
+          <div class="progress"><div class="fill" style="--mc:var(--teal);width:${g.progress||0}%"></div></div>
+        </div>`).join('') : '<div class="empty">Koi active goal nahi hai.</div>'}
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2><span class="accent" style="background:var(--emerald)"></span>Funded Challenge</h2></div>
+      ${challenge? `<div class="entry" style="--mc:var(--emerald)" onclick="switchTab('challenges')">
+        <div class="entry-top"><div class="entry-title">${escapeHtml(challenge.name)}</div><span class="badge">${challenge.status}</span></div>
+        <div class="entry-sub">${challenge.propFirm} · ${challenge.phase} · Balance $${challenge.currentBalance}</div>
+      </div>` : '<div class="empty">Koi funded challenge track nahi ho raha.</div>'}
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2><span class="accent" style="background:var(--gold)"></span>Quick Actions</h2></div>
+      <div class="btn-row">
+        <button class="quick-btn" style="border-color:var(--blue)" onclick="switchTab('trades');setTimeout(()=>openForm('trades'),50)"><span class="k">Journal</span>New Trade</button>
+        <button class="quick-btn" style="border-color:var(--violet)" onclick="switchTab('psychology');setTimeout(()=>openForm('psychology'),50)"><span class="k">Mindset</span>Daily Check-in</button>
+        <button class="quick-btn" style="border-color:var(--rose)" onclick="switchTab('weekly');setTimeout(()=>openForm('weekly'),50)"><span class="k">Review</span>Weekly Review</button>
+        <button class="quick-btn" style="border-color:var(--rose)" onclick="switchTab('monthly');setTimeout(()=>openForm('monthly'),50)"><span class="k">Review</span>Monthly Review</button>
+        <button class="quick-btn" style="border-color:var(--dim)" onclick="exportAll()"><span class="k">Backup</span>Export All Data</button>
+      </div>
+    </div>
+  `;
+  requestAnimationFrame(()=>{
+    const f = document.getElementById('targetFill');
+    if(f) f.style.width = Math.max(0,targetProgress)+'%';
+  });
+}
+
+function streakText(){
+  const s = currentStreak();
+  if(!s.type) return '—';
+  return `${s.count} ${s.type}${s.count>1?'s':''}`;
+}
+function streakBadgeClass(){
+  const s = currentStreak();
+  if(s.type==='Win') return 'win';
+  if(s.type==='Loss') return 'loss';
+  return '';
+}
+function dailyLossAlertHTML(){
+  const acct = state.accounts[0];
+  if(!acct || !acct.dailyLossAmt) return '';
+  const pnlToday = todaysPnl();
+  if(pnlToday >= 0) return '';
+  const used = Math.min(100, Math.round((Math.abs(pnlToday)/Number(acct.dailyLossAmt))*100));
+  const danger = used >= 80;
+  const warn = used >= 50;
+  const color = danger? 'var(--loss)' : (warn? 'var(--amber)' : 'var(--dim)');
+  return `<div class="stat" style="margin-bottom:14px;border-color:${danger?'var(--loss)':'var(--line)'}">
+    <div class="l" style="margin-bottom:6px;">${danger?'⚠ Daily loss limit ke qareeb — ':''}Aaj ka loss: $${Math.abs(pnlToday).toFixed(2)} / $${Number(acct.dailyLossAmt).toFixed(2)} limit</div>
+    <div class="progress"><div class="fill" style="background:${color};width:${used}%"></div></div>
+  </div>`;
+}
+function psychSummaryHTML(){
+  const items = state.psychology;
+  if(!items.length) return '';
+  const avg = k => (items.reduce((s,i)=>s+(Number(i[k])||0),0)/items.length).toFixed(1);
+  const rows = [['discipline','Discipline','var(--teal)'],['focus','Focus','var(--blue)'],['patience','Patience','var(--gold)'],['stress','Stress','var(--loss)'],['fomo','FOMO','var(--amber)'],['revengeUrge','Revenge Urge','var(--rose)']];
+  const followedPct = Math.round(items.filter(i=>i.followedPlan==='Yes').length/items.length*100);
+  return `<div class="stat" style="margin-bottom:16px;">
+    <div class="l" style="margin-bottom:8px;">Averages · Plan followed ${followedPct}%</div>
+    ${rows.map(([k,l,c])=>`<div class="mini-bar"><div class="lbl">${l}</div><div class="track"><div class="fill" style="background:${c};width:${avg(k)*10}%"></div></div><div class="val mono">${avg(k)}</div></div>`).join('')}
+  </div>`;
+}
+
+/* ===================== EQUITY CURVE ===================== */
+function renderEquity(){
+  const el = document.getElementById('view-equity');
+  const acct = state.accounts[0];
+  const trades = state.trades.slice().sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  let running = acct? Number(acct.startBalance)||0 : 0;
+  const start = running;
+  let peak = running, maxDD = 0;
+  const points = trades.map(t=>{
+    running += Number(t.pnl)||0;
+    peak = Math.max(peak, running);
+    maxDD = Math.max(maxDD, peak-running);
+    return running;
+  });
+  const current = points.length? points[points.length-1] : start;
+  const bestDay = trades.length? Math.max(...trades.map(t=>Number(t.pnl)||0)):0;
+  const worstDay = trades.length? Math.min(...trades.map(t=>Number(t.pnl)||0)):0;
+  const cumPnl = current - start;
+
+  const all = [start, ...points];
+  const w=600,h=160, min=Math.min(...all), max=Math.max(...all), range=(max-min)||1;
+  const stepX = all.length>1 ? w/(all.length-1) : w;
+  const coords = all.map((v,i)=>[i*stepX, h - ((v-min)/range)*h]);
+  const path = coords.map((c,i)=> (i===0?'M':'L')+c[0].toFixed(1)+','+c[1].toFixed(1)).join(' ');
+  const fillPath = path + ` L${w},${h} L0,${h} Z`;
+
+  el.innerHTML = `
+    <div class="section-head"><h2><span class="accent" style="background:var(--gold)"></span>Equity Curve</h2></div>
+    <div class="stat-grid" style="margin-bottom:18px;">
+      <div class="stat"><div class="n mono">$${start.toFixed(2)}</div><div class="l">Starting Equity</div></div>
+      <div class="stat"><div class="n mono">$${current.toFixed(2)}</div><div class="l">Current Equity</div></div>
+      <div class="stat"><div class="n mono">$${peak.toFixed(2)}</div><div class="l">Peak Equity</div></div>
+      <div class="stat"><div class="n mono loss">$${maxDD.toFixed(2)}</div><div class="l">Max Drawdown</div></div>
+      <div class="stat"><div class="n mono ${cumPnl>=0?'win':'loss'}">${fmtMoney(cumPnl)}</div><div class="l">Cumulative P&L</div></div>
+      <div class="stat"><div class="n mono win">${fmtMoney(bestDay)}</div><div class="l">Best Day</div></div>
+    </div>
+    <svg id="eqchart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+      <defs><linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#D4AF37" stop-opacity="0.5"/>
+        <stop offset="100%" stop-color="#D4AF37" stop-opacity="0"/>
+      </linearGradient></defs>
+      <path class="eq-fill" d="${fillPath}"/>
+      <path class="eq-line" id="eqline" d="${path}"/>
+    </svg>
+  `;
+  const lineEl = document.getElementById('eqline');
+  if(lineEl){
+    const len = lineEl.getTotalLength();
+    lineEl.style.strokeDasharray = len;
+    lineEl.style.strokeDashoffset = len;
+    requestAnimationFrame(()=>{
+      lineEl.style.transition = 'stroke-dashoffset 1.1s ease';
+      lineEl.style.strokeDashoffset = 0;
+    });
+  }
+}
+
+loadState();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(e=>console.log('SW failed', e));
+  });
+}
+</script>
+</body>
+</html>

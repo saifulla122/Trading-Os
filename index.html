@@ -168,7 +168,8 @@ const MODULES = {
     {k:'riskAmt',l:'Risk $',t:'number'},
     {k:'plannedRR',l:'Planned RR',t:'text'},
     {k:'resultR',l:'Result R',t:'number'},
-    {k:'pnl',l:'P&L $',t:'number'},
+    {k:'pnl',l:'Gross P&L $',t:'number'},
+    {k:'commission',l:'Commission $',t:'number'},
     {k:'outcome',l:'Outcome',t:'select',o:['Win','Loss','BE']},
     {k:'duration',l:'Trade Duration',t:'text'},
     {k:'entryReason',l:'Entry Reason',t:'textarea'},
@@ -188,7 +189,7 @@ const MODULES = {
     {k:'newsEvent',l:'News / Event',t:'text'},
     {k:'tags',l:'Tags',t:'text'}
   ], list:i=>({title:`${i.pair||'—'} ${i.direction||''}`, sub:`${i.date||''} · ${i.session||''} · ${i.outcome||''}`,
-    right:i.pnl!==undefined&&i.pnl!==''?fmtMoney(i.pnl):'', badge:i.executionGrade?{cls:'grade-'+i.executionGrade[0],txt:i.executionGrade}:(i.outcome?{cls:'outcome-'+i.outcome,txt:i.outcome}:null)})},
+    right:i.pnl!==undefined&&i.pnl!==''?fmtMoney(netPnl(i)):'', badge:i.executionGrade?{cls:'grade-'+i.executionGrade[0],txt:i.executionGrade}:(i.outcome?{cls:'outcome-'+i.outcome,txt:i.outcome}:null)})},
 
   psychology:{label:'Psychology', color:'var(--violet)', fields:[
     {k:'date',l:'Date',t:'date'},
@@ -306,34 +307,43 @@ const STORE_KEY = 'tradingos:state:v1';
 
 async function loadState(){
   try{
-    const res = await window.storage.get(STORE_KEY, false);
-    if(res && res.value) state = Object.assign(state, JSON.parse(res.value));
-  }catch(e){ /* first run, no data yet */ }
+    if(window.storage){
+      const res = await window.storage.get(STORE_KEY, false);
+      if(res && res.value) state = Object.assign(state, JSON.parse(res.value));
+    } else {
+      const raw = localStorage.getItem(STORE_KEY);
+      if(raw) state = Object.assign(state, JSON.parse(raw));
+    }
+  }catch(e){
+    try{ const raw = localStorage.getItem(STORE_KEY); if(raw) state = Object.assign(state, JSON.parse(raw)); }catch(e2){}
+  }
   seedIfEmpty();
   buildTabs();
   switchTab('dashboard');
 }
 async function saveState(){
-  try{ await window.storage.set(STORE_KEY, JSON.stringify(state), false); }
-  catch(e){ console.error('save failed', e); }
+  try{
+    if(window.storage){ await window.storage.set(STORE_KEY, JSON.stringify(state), false); }
+    else { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+  }catch(e){
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e2){ console.error('save failed', e2); }
+  }
 }
 
 function seedIfEmpty(){
   if(state.accounts.length===0){
-    state.accounts.push({id:uid(),name:'6K Stellar Challenge',type:'Funded',propFirm:'FundedNext',size:6000,startBalance:6000,currentBalance:5942.36,currentEquity:5942.36,riskAmt:60,riskPct:1,dailyLossAmt:300,overallLossAmt:600,profitTargetAmt:600,currentDrawdownAmt:57.64,profitSplit:'80/20',phase:'P1',startDate:'2026-09-05',status:'Active',notes:''});
-  }
-  if(state.trades.length===0){
-    state.trades.push({id:uid(),date:'2026-09-07',time:'13:27',accountId:state.accounts[0].id,pair:'XAUUSD',direction:'Buy',session:'London',marketCondition:'Volatile',entryPrice:4399.28,stopLoss:4385.22,takeProfit:4449.70,exitPrice:4383.20,riskAmt:60,plannedRR:'1:3.59',resultR:-0.96,pnl:-57.36,outcome:'Loss',duration:'1:05:08',tags:'stopped-out'});
+    state.accounts.push({id:uid(),name:'6K Stellar Challenge',type:'Funded',propFirm:'FundedNext',size:6000,startBalance:6000,currentBalance:5931.80,currentEquity:5931.80,riskAmt:60,riskPct:1,dailyLossAmt:300,overallLossAmt:600,profitTargetAmt:480,currentDrawdownAmt:68.20,profitSplit:'80/20',phase:'P1',startDate:'2026-09-05',status:'Active',notes:''});
   }
 }
 function uid(){ return 'id-'+Date.now()+'-'+Math.floor(Math.random()*9999); }
 function fmtMoney(n){ n=Number(n)||0; const s=n>=0?'+':'−'; return s+'$'+Math.abs(n).toFixed(2); }
+function netPnl(t){ return (Number(t.pnl)||0) - (Number(t.commission)||0); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 
 /* ---- analytics helpers ---- */
 function sortedTrades(){ return state.trades.slice().sort((a,b)=>((a.date||'')+(a.time||'')).localeCompare((b.date||'')+(b.time||''))); }
 function todaysTrades(){ const t = todayStr(); return state.trades.filter(tr=>tr.date===t); }
-function todaysPnl(){ return todaysTrades().reduce((s,t)=>s+(Number(t.pnl)||0),0); }
+function todaysPnl(){ return todaysTrades().reduce((s,t)=>s+netPnl(t),0); }
 function currentStreak(){
   const list = sortedTrades().slice().reverse().filter(t=>t.outcome==='Win'||t.outcome==='Loss');
   if(!list.length) return {type:null,count:0};
@@ -352,7 +362,7 @@ function sessionPerformance(){
   return sessions.map(s=>{
     const list = state.trades.filter(t=>t.session===s);
     const wins = list.filter(t=>t.outcome==='Win').length;
-    const pnl = list.reduce((sum,t)=>sum+(Number(t.pnl)||0),0);
+    const pnl = list.reduce((sum,t)=>sum+netPnl(t),0);
     return {session:s, count:list.length, winRate: list.length?Math.round(wins/list.length*100):0, pnl};
   }).filter(s=>s.count>0);
 }
@@ -447,7 +457,8 @@ function renderGenericModule(modId){
   listEl.innerHTML = sorted.map(item=>{
     const meta = mod.list(item);
     const badge = meta.badge ? `<span class="badge ${meta.badge.cls}">${meta.badge.txt}</span>` : '';
-    const right = meta.right!==undefined && meta.right!=='' ? `<span class="mono ${Number(item.pnl)<0?'loss':(Number(item.pnl)>0?'win':'')}">${meta.right}</span>` : badge;
+    const netVal = item.pnl!==undefined ? netPnl(item) : null;
+    const right = meta.right!==undefined && meta.right!=='' ? `<span class="mono ${netVal<0?'loss':(netVal>0?'win':'')}">${meta.right}</span>` : badge;
     return `<div class="entry" style="--mc:${mod.color}" onclick="openForm('${modId}','${item.id}')">
       <div class="entry-top"><div class="entry-title">${escapeHtml(meta.title)}</div>${right}</div>
       <div class="entry-sub">${escapeHtml(meta.sub||'')}</div>
@@ -543,17 +554,17 @@ function renderDashboard(){
   const losses = trades.filter(t=>t.outcome==='Loss').length;
   const bes = trades.filter(t=>t.outcome==='BE').length;
   const winRate = total? Math.round((wins/total)*100):0;
-  const totalPnl = trades.reduce((s,t)=>s+(Number(t.pnl)||0),0);
+  const totalPnl = trades.reduce((s,t)=>s+netPnl(t),0);
   const rs = trades.map(t=>Number(t.resultR)).filter(n=>!isNaN(n));
   const avgR = rs.length? (rs.reduce((a,b)=>a+b,0)/rs.length).toFixed(2):'—';
   const winRs = rs.filter(r=>r>0), lossRs = rs.filter(r=>r<0);
   const avgWinR = winRs.length?(winRs.reduce((a,b)=>a+b,0)/winRs.length).toFixed(2):'—';
   const avgLossR = lossRs.length?(lossRs.reduce((a,b)=>a+b,0)/lossRs.length).toFixed(2):'—';
-  const grossWin = trades.filter(t=>Number(t.pnl)>0).reduce((s,t)=>s+Number(t.pnl),0);
-  const grossLoss = Math.abs(trades.filter(t=>Number(t.pnl)<0).reduce((s,t)=>s+Number(t.pnl),0));
+  const grossWin = trades.filter(t=>netPnl(t)>0).reduce((s,t)=>s+netPnl(t),0);
+  const grossLoss = Math.abs(trades.filter(t=>netPnl(t)<0).reduce((s,t)=>s+netPnl(t),0));
   const profitFactor = grossLoss? (grossWin/grossLoss).toFixed(2) : (grossWin>0?'∞':'—');
-  const best = trades.length? Math.max(...trades.map(t=>Number(t.pnl)||0)):0;
-  const worst = trades.length? Math.min(...trades.map(t=>Number(t.pnl)||0)):0;
+  const best = trades.length? Math.max(...trades.map(t=>netPnl(t))):0;
+  const worst = trades.length? Math.min(...trades.map(t=>netPnl(t))):0;
 
   const remainingTarget = acct ? Math.max((Number(acct.profitTargetAmt)||0) - ((Number(acct.currentBalance)||0)-(Number(acct.startBalance)||0)), 0) : 0;
   const targetProgress = acct && acct.profitTargetAmt ? Math.min(100, Math.round((((Number(acct.currentBalance)||0)-(Number(acct.startBalance)||0))/Number(acct.profitTargetAmt))*100)) : 0;
@@ -698,14 +709,14 @@ function renderEquity(){
   const start = running;
   let peak = running, maxDD = 0;
   const points = trades.map(t=>{
-    running += Number(t.pnl)||0;
+    running += netPnl(t);
     peak = Math.max(peak, running);
     maxDD = Math.max(maxDD, peak-running);
     return running;
   });
   const current = points.length? points[points.length-1] : start;
-  const bestDay = trades.length? Math.max(...trades.map(t=>Number(t.pnl)||0)):0;
-  const worstDay = trades.length? Math.min(...trades.map(t=>Number(t.pnl)||0)):0;
+  const bestDay = trades.length? Math.max(...trades.map(t=>netPnl(t))):0;
+  const worstDay = trades.length? Math.min(...trades.map(t=>netPnl(t))):0;
   const cumPnl = current - start;
 
   const all = [start, ...points];

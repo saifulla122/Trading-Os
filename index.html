@@ -141,7 +141,7 @@ const MODULES = {
     {k:'profitTargetAmt',l:'Profit Target $',t:'number'},
     {k:'currentDrawdownAmt',l:'Current Drawdown $',t:'number'},
     {k:'profitSplit',l:'Profit Split',t:'text'},
-    {k:'phase',l:'Challenge Phase',t:'text'},
+    {k:'phase',l:'Challenge Phase',t:'select',o:['Phase 1','Phase 2','Funded/Live']},
     {k:'startDate',l:'Start Date',t:'date'},
     {k:'status',l:'Status',t:'select',o:['Active','Passed','Failed','Paused']},
     {k:'notes',l:'Notes',t:'textarea'}
@@ -151,6 +151,7 @@ const MODULES = {
     {k:'date',l:'Date',t:'date'},
     {k:'time',l:'Time',t:'time'},
     {k:'accountId',l:'Account',t:'rel',src:'accounts'},
+    {k:'phase',l:'Challenge Phase',t:'select',o:['Phase 1','Phase 2','Funded/Live']},
     {k:'pair',l:'Pair',t:'text'},
     {k:'direction',l:'Direction',t:'select',o:['Buy','Sell']},
     {k:'session',l:'Session',t:'select',o:['Asia','London','New York','Overlap']},
@@ -306,33 +307,39 @@ let state = {accounts:[],trades:[],psychology:[],goals:[],setups:[],challenges:[
 const STORE_KEY = 'tradingos:state:v1';
 
 async function loadState(){
+  let fromCloud = null, fromLocal = null;
   try{
     if(window.storage){
       const res = await window.storage.get(STORE_KEY, false);
-      if(res && res.value) state = Object.assign(state, JSON.parse(res.value));
-    } else {
-      const raw = localStorage.getItem(STORE_KEY);
-      if(raw) state = Object.assign(state, JSON.parse(raw));
+      if(res && res.value) fromCloud = JSON.parse(res.value);
     }
-  }catch(e){
-    try{ const raw = localStorage.getItem(STORE_KEY); if(raw) state = Object.assign(state, JSON.parse(raw)); }catch(e2){}
+  }catch(e){ /* window.storage not available here, that's fine */ }
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(raw) fromLocal = JSON.parse(raw);
+  }catch(e){ /* localStorage blocked, that's fine */ }
+
+  const candidates = [fromCloud, fromLocal].filter(Boolean);
+  if(candidates.length){
+    candidates.sort((a,b)=>(b._savedAt||0)-(a._savedAt||0));
+    state = Object.assign(state, candidates[0]);
   }
   seedIfEmpty();
   buildTabs();
   switchTab('dashboard');
 }
 async function saveState(){
-  try{
-    if(window.storage){ await window.storage.set(STORE_KEY, JSON.stringify(state), false); }
-    else { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
-  }catch(e){
-    try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e2){ console.error('save failed', e2); }
-  }
+  state._savedAt = Date.now();
+  const payload = JSON.stringify(state);
+  try{ localStorage.setItem(STORE_KEY, payload); }
+  catch(e){ console.error('localStorage save failed', e); }
+  try{ if(window.storage) await window.storage.set(STORE_KEY, payload, false); }
+  catch(e){ /* not fatal — localStorage already has it */ }
 }
 
 function seedIfEmpty(){
   if(state.accounts.length===0){
-    state.accounts.push({id:uid(),name:'6K Stellar Challenge',type:'Funded',propFirm:'FundedNext',size:6000,startBalance:6000,currentBalance:5931.80,currentEquity:5931.80,riskAmt:60,riskPct:1,dailyLossAmt:300,overallLossAmt:600,profitTargetAmt:480,currentDrawdownAmt:68.20,profitSplit:'80/20',phase:'P1',startDate:'2026-09-05',status:'Active',notes:''});
+    state.accounts.push({id:uid(),name:'6K Stellar Challenge',type:'Funded',propFirm:'FundedNext',size:6000,startBalance:6000,currentBalance:5931.80,currentEquity:5931.80,riskAmt:60,riskPct:1,dailyLossAmt:300,overallLossAmt:600,profitTargetAmt:480,currentDrawdownAmt:68.20,profitSplit:'80/20',phase:'Phase 1',startDate:'2026-09-05',status:'Active',notes:''});
   }
 }
 function uid(){ return 'id-'+Date.now()+'-'+Math.floor(Math.random()*9999); }
@@ -366,11 +373,53 @@ function sessionPerformance(){
     return {session:s, count:list.length, winRate: list.length?Math.round(wins/list.length*100):0, pnl};
   }).filter(s=>s.count>0);
 }
+function phaseTargetAmt(acct){
+  if(!acct) return null;
+  const size = Number(acct.size || acct.startBalance || 0);
+  if(acct.phase==='Phase 1') return size*0.08;
+  if(acct.phase==='Phase 2') return size*0.05;
+  return null; // Funded/Live has no fixed target
+}
+function phaseTrades(acct){
+  if(!acct) return [];
+  return state.trades.filter(t => (t.phase || 'Phase 1') === acct.phase);
+}
+function phaseNetPnl(acct){ return phaseTrades(acct).reduce((s,t)=>s+netPnl(t),0); }
+function phaseTradingDays(acct){
+  const days = new Set(phaseTrades(acct).map(t=>t.date).filter(Boolean));
+  return days.size;
+}
+async function advancePhase(){
+  const acct = state.accounts[0];
+  if(!acct) return;
+  if(acct.phase==='Phase 1') acct.phase = 'Phase 2';
+  else if(acct.phase==='Phase 2') acct.phase = 'Funded/Live';
+  else return;
+  await saveState();
+  renderDashboard();
+}
 function ruleAdherencePct(){
   const rated = state.trades.filter(t=>t.ruleAdherence==='Yes'||t.ruleAdherence==='No');
   if(!rated.length) return null;
   const yes = rated.filter(t=>t.ruleAdherence==='Yes').length;
   return Math.round(yes/rated.length*100);
+}
+function restoreBackup(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try{
+      const parsed = JSON.parse(e.target.result);
+      state = Object.assign({accounts:[],trades:[],psychology:[],goals:[],setups:[],challenges:[],weekly:[],monthly:[]}, parsed);
+      await saveState();
+      switchTab('dashboard');
+      alert('Backup restore ho gaya.');
+    }catch(err){
+      alert('Ye file valid backup nahi hai.');
+    }
+  };
+  reader.readAsText(file);
 }
 function exportAll(){
   const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
@@ -475,7 +524,10 @@ function openForm(modId, itemId){
   const item = itemId ? state[modId].find(x=>x.id===itemId) : {};
   const isEdit = !!itemId;
   const fieldsHTML = mod.fields.map(f=>{
-    const val = item[f.k]!==undefined ? item[f.k] : (f.k==='date'?todayStr():'');
+    let defaultVal = '';
+    if(f.k==='date') defaultVal = todayStr();
+    if(f.k==='phase' && modId==='trades' && state.accounts[0]) defaultVal = state.accounts[0].phase || 'Phase 1';
+    const val = item[f.k]!==undefined ? item[f.k] : defaultVal;
     if(f.t==='textarea') return fieldWrap(f, `<textarea data-k="${f.k}">${escapeHtml(val)}</textarea>`);
     if(f.t==='select') return fieldWrap(f, `<select data-k="${f.k}"><option value="">—</option>${f.o.map(o=>`<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}</select>`);
     if(f.t==='rel') return fieldWrap(f, `<select data-k="${f.k}"><option value="">—</option>${relOptions(f.src).map(o=>`<option value="${o.id}" ${val===o.id?'selected':''}>${escapeHtml(o.label)}</option>`).join('')}</select>`);
@@ -566,8 +618,23 @@ function renderDashboard(){
   const best = trades.length? Math.max(...trades.map(t=>netPnl(t))):0;
   const worst = trades.length? Math.min(...trades.map(t=>netPnl(t))):0;
 
-  const remainingTarget = acct ? Math.max((Number(acct.profitTargetAmt)||0) - ((Number(acct.currentBalance)||0)-(Number(acct.startBalance)||0)), 0) : 0;
-  const targetProgress = acct && acct.profitTargetAmt ? Math.min(100, Math.round((((Number(acct.currentBalance)||0)-(Number(acct.startBalance)||0))/Number(acct.profitTargetAmt))*100)) : 0;
+  const startBal = acct ? Number(acct.startBalance || acct.size || 0) : 0;
+  let runningBal = startBal, peakBal = startBal, liveDrawdown = 0;
+  sortedTrades().forEach(t=>{
+    runningBal += netPnl(t);
+    peakBal = Math.max(peakBal, runningBal);
+    liveDrawdown = Math.max(liveDrawdown, peakBal - runningBal);
+  });
+  const liveBalance = runningBal;
+
+  const pTarget = acct ? phaseTargetAmt(acct) : null;
+  const pNet = acct ? phaseNetPnl(acct) : 0;
+  const pDays = acct ? phaseTradingDays(acct) : 0;
+  const pRemaining = pTarget!==null ? Math.max(pTarget - pNet, 0) : 0;
+  const pProgress = pTarget ? Math.min(100, Math.max(0, Math.round((pNet/pTarget)*100))) : 0;
+  const pEligible = acct && pTarget!==null && pNet>=pTarget && pDays>=5;
+  const dailyLossLimitCalc = acct ? Number(acct.size||acct.startBalance||0)*0.05 : 0;
+  const overallLossLimitCalc = acct ? Number(acct.size||acct.startBalance||0)*0.10 : 0;
 
   const psychThisWeek = state.psychology.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
   const activeGoals = state.goals.filter(g=>g.status==='In Progress'||g.status==='Not Started');
@@ -577,13 +644,38 @@ function renderDashboard(){
     <div class="section">
       <div class="section-head"><h2><span class="accent" style="background:var(--gold)"></span>Account Snapshot</h2></div>
       <div class="stat-grid cols3">
-        <div class="stat"><div class="n mono">$${acct?Number(acct.currentBalance).toFixed(2):'—'}</div><div class="l">Current Balance</div></div>
+        <div class="stat"><div class="n mono">$${liveBalance.toFixed(2)}</div><div class="l">Current Balance</div></div>
         <div class="stat"><div class="n mono ${totalPnl>=0?'win':'loss'}">${fmtMoney(totalPnl)}</div><div class="l">Total P&L</div></div>
-        <div class="stat"><div class="n mono">$${acct?Number(acct.currentDrawdownAmt||0).toFixed(2):'—'}</div><div class="l">Overall Drawdown</div></div>
+        <div class="stat"><div class="n mono">$${liveDrawdown.toFixed(2)}</div><div class="l">Overall Drawdown</div></div>
       </div>
       <div class="stat" style="margin-bottom:20px;">
-        <div class="l" style="margin-bottom:0;">Profit Target Progress — remaining $${remainingTarget.toFixed(2)}</div>
-        <div class="progress"><div class="fill" id="targetFill" style="--mc:var(--emerald)"></div></div>
+        <div class="l" style="margin-bottom:0;">Account P&L (all phases combined)</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2><span class="accent" style="background:var(--amber)"></span>Challenge Progress — ${acct?acct.phase:'—'}</h2></div>
+      ${pTarget!==null ? `
+        <div class="stat" style="margin-bottom:14px;">
+          <div class="l" style="margin-bottom:6px;">${acct.phase} Target: $${pTarget.toFixed(2)} (${acct.phase==='Phase 1'?'8%':'5%'}) — this phase P&L: ${fmtMoney(pNet)}, remaining $${pRemaining.toFixed(2)}</div>
+          <div class="progress"><div class="fill" id="phaseFill" style="--mc:var(--amber)"></div></div>
+        </div>
+        <div class="stat-grid" style="margin-bottom:14px;">
+          <div class="stat"><div class="n mono">${pDays} / 5</div><div class="l">Trading Days (this phase)</div></div>
+          <div class="stat"><div class="n mono">$${dailyLossLimitCalc.toFixed(2)}</div><div class="l">Daily Loss Limit (5%)</div></div>
+        </div>
+        ${pEligible ? `<button class="btn-add" style="--mc:var(--emerald);width:100%;" onclick="advancePhase()">✓ Target &amp; days complete — Advance to ${acct.phase==='Phase 1'?'Phase 2':'Funded/Live'}</button>` :
+        `<div class="empty">Target ya minimum 5 trading days abhi complete nahi hue.</div>`}
+      ` : `
+        <div class="stat"><div class="l" style="margin-bottom:6px;">🎉 Live Funded Account — koi fixed profit target nahi. Profit split: ${acct?acct.profitSplit||'—':'—'}</div></div>
+      `}
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2><span class="accent" style="background:var(--rose)"></span>Risk Limits (Full Account)</h2></div>
+      <div class="stat-grid">
+        <div class="stat"><div class="n mono">$${overallLossLimitCalc.toFixed(2)}</div><div class="l">Overall Loss Limit (10%)</div></div>
+        <div class="stat"><div class="n mono loss">$${liveDrawdown.toFixed(2)}</div><div class="l">Current Drawdown</div></div>
       </div>
     </div>
 
@@ -654,12 +746,14 @@ function renderDashboard(){
         <button class="quick-btn" style="border-color:var(--rose)" onclick="switchTab('weekly');setTimeout(()=>openForm('weekly'),50)"><span class="k">Review</span>Weekly Review</button>
         <button class="quick-btn" style="border-color:var(--rose)" onclick="switchTab('monthly');setTimeout(()=>openForm('monthly'),50)"><span class="k">Review</span>Monthly Review</button>
         <button class="quick-btn" style="border-color:var(--dim)" onclick="exportAll()"><span class="k">Backup</span>Export All Data</button>
+        <button class="quick-btn" style="border-color:var(--dim)" onclick="document.getElementById('restoreFile').click()"><span class="k">Backup</span>Restore From File</button>
+        <input type="file" id="restoreFile" accept="application/json" style="display:none" onchange="restoreBackup(event)">
       </div>
     </div>
   `;
   requestAnimationFrame(()=>{
-    const f = document.getElementById('targetFill');
-    if(f) f.style.width = Math.max(0,targetProgress)+'%';
+    const f = document.getElementById('phaseFill');
+    if(f) f.style.width = Math.max(0,pProgress)+'%';
   });
 }
 
